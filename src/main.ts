@@ -1,13 +1,10 @@
 import './shared/env.config.js';
+import type { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { AppModule, ObserveInstrument } from './app.module.js';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { AppModule, ObserveInstrument } from './app.module.js';
 
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
-    instrument: ObserveInstrument,
-  });
-
+function setupApp(app: INestApplication) {
   app.enableCors({
     origin: [
       'http://localhost:5173',
@@ -15,6 +12,7 @@ async function bootstrap() {
       'http://localhost:5174',
     ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    allowedHeaders: 'Content-Type, Accept, Authorization',
     credentials: true,
   });
 
@@ -33,13 +31,35 @@ async function bootstrap() {
       'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.29.1/swagger-ui-standalone-preset.js',
     ],
     swaggerOptions: {
-      syntaxHighlight: {
-        theme: 'monokai',
-      },
+      syntaxHighlight: { theme: 'monokai' },
     },
   };
   SwaggerModule.setup('api-docs', app, documentFactory, customerConfig);
+}
 
+let cachedServer: any;
+
+async function bootstrapVercel() {
+  if (!cachedServer) {
+    const app = await NestFactory.create(AppModule, {
+      instrument: ObserveInstrument,
+    });
+    setupApp(app);
+    await app.init();
+    cachedServer = app.getHttpAdapter().getInstance();
+  }
+  return cachedServer;
+}
+
+if (!process.env.VERCEL) {
+  const app = await NestFactory.create(AppModule, {
+    instrument: ObserveInstrument,
+  });
+  setupApp(app);
   await app.listen(process.env.PORT ?? 3000);
 }
-await bootstrap();
+
+export default async function handler(req: any, res: any) {
+  const server = await bootstrapVercel();
+  return server(req, res);
+}
