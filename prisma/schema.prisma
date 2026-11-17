@@ -10,6 +10,8 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 enum JobStatus {
@@ -38,7 +40,7 @@ model Applications {
   id            String   @id @default(uuid()) @db.Uuid
   fullName      String
   phone         String
-  email         String 
+  email         String
   address       String
   instroduction String
   created_at    DateTime @default(now())
