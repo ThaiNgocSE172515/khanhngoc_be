@@ -43,6 +43,52 @@ model Applications {
   email         String
   address       String
   instroduction String
+  status        String
+  cvUrl         String?
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
+}
+
+model Project {
+  id             String   @id @default(uuid()) @db.Uuid
+  name           String
+  investor       String
+  projectType    String
+  completionTime String
+  location       String
+  description    String
+  area           String
+  mainImages     String[]
+  images         String[]
+  revitLink      String?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  @@map("projects")
+}
+
+model Member {
+  id         String   @id @default(uuid()) @db.Uuid
+  name       String
+  position   String
+  story      String
+  image      String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("members")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id        String   @id // Nhận trực tiếp UUID từ Supabase Auth
+  email     String   @unique
+  fullName  String?
+  role      Role     @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

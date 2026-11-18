@@ -1,15 +1,50 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  UseInterceptors,
+  BadRequestException,
+  UploadedFile,
+} from '@nestjs/common';
 import { ApplicationsService } from './applications.service.js';
 import { CreateApplicationDto } from './dto/create-application.dto.js';
 import { UpdateApplicationDto } from './dto/update-application.dto.js';
+import { FileInterceptor } from '@nestjs/platform-express';
+
+const ALLOWED_MIMES = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+];
 
 @Controller('applications')
 export class ApplicationsController {
   constructor(private readonly applicationsService: ApplicationsService) {}
 
   @Post()
-  create(@Body() createApplicationDto: CreateApplicationDto) {
-    return this.applicationsService.create(createApplicationDto);
+  @UseInterceptors(
+    FileInterceptor('cv', {
+      limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+      fileFilter: (_req, file, cb) => {
+        if (!ALLOWED_MIMES.includes(file.mimetype)) {
+          return cb(
+            new BadRequestException('Chỉ chấp nhận file PDF, DOC hoặc DOCX'),
+            false,
+          );
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  create(
+    @Body() createApplicationDto: CreateApplicationDto,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    return this.applicationsService.create(createApplicationDto, file);
   }
 
   @Get()
@@ -19,16 +54,19 @@ export class ApplicationsController {
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.applicationsService.findOne(+id);
+    return this.applicationsService.findOne(id);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateApplicationDto: UpdateApplicationDto) {
-    return this.applicationsService.update(+id, updateApplicationDto);
+  update(
+    @Param('id') id: string,
+    @Body() updateApplicationDto: UpdateApplicationDto,
+  ) {
+    return this.applicationsService.update(id, updateApplicationDto);
   }
 
   @Delete(':id')
   remove(@Param('id') id: string) {
-    return this.applicationsService.remove(+id);
+    return this.applicationsService.remove(id);
   }
 }

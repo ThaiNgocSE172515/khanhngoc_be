@@ -5,6 +5,9 @@ import { AppService } from './app.service.js';
 import { HiringModule } from './hiring/hiring.module.js';
 import { SharedModule } from './shared/shared.module.js';
 import { ApplicationsModule } from './applications/applications.module.js';
+import { ProjectsModule } from './projects/projects.module.js';
+import { MembersModule } from './members/members.module.js';
+import { AuthModule } from './auth/auth.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -21,6 +24,9 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     HiringModule,
     SharedModule,
     ApplicationsModule,
+    ProjectsModule,
+    MembersModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
