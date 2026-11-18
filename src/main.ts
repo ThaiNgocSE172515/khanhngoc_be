@@ -10,6 +10,7 @@ function setupApp(app: INestApplication) {
       'http://localhost:5173',
       'http://localhost:3000',
       'http://localhost:5174',
+      'https://khanh-ngoc.vercel.app',
     ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: 'Content-Type, Accept, Authorization',
