@@ -3,12 +3,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma, Project } from '@prisma/client';
 import { PrismaService } from '../shared/prisma.service.js';
 import { SupabaseService } from '../shared/supabase.service.js';
 import { CreateProjectDto } from './dto/create-project.dto.js';
 import { UpdateProjectDto } from './dto/update-project.dto.js';
 import { normalizePagination } from '../shared/pagination.helper.js';
-import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class ProjectsService {
@@ -16,6 +16,21 @@ export class ProjectsService {
     private readonly prisma: PrismaService,
     private readonly supabaseService: SupabaseService,
   ) {}
+
+  private localizeProject(project: Project, lang?: 'vi' | 'en') {
+    if (lang !== 'en') return project;
+
+    return {
+      ...project,
+      name: project.nameEn || project.name,
+      investor: project.investorEn || project.investor,
+      projectType: project.projectTypeEn || project.projectType,
+      completionTime: project.completionTimeEn || project.completionTime,
+      location: project.locationEn || project.location,
+      description: project.descriptionEn || project.description,
+      area: project.areaEn || project.area,
+    };
+  }
 
   async create(
     body: CreateProjectDto,
@@ -51,12 +66,19 @@ export class ProjectsService {
     return this.prisma.project.create({
       data: {
         name: body.name,
+        nameEn: body.nameEn || null,
         investor: body.investor,
+        investorEn: body.investorEn || null,
         projectType: body.projectType,
+        projectTypeEn: body.projectTypeEn || null,
         completionTime: body.completionTime,
+        completionTimeEn: body.completionTimeEn || null,
         location: body.location,
+        locationEn: body.locationEn || null,
         description: body.description || '',
+        descriptionEn: body.descriptionEn || null,
         area: body.area,
+        areaEn: body.areaEn || null,
         revitLink: body.revitLink || null,
         lat: body.lat || null,
         lng: body.lng || null,
@@ -67,6 +89,7 @@ export class ProjectsService {
   }
 
   async findAll(query?: {
+    lang?: 'vi' | 'en';
     projectType?: string;
     investor?: string;
     completionTime?: string;
@@ -74,25 +97,34 @@ export class ProjectsService {
     page?: number | string;
     limit?: number | string;
   }) {
-    const { projectType, investor, completionTime, q } = query || {};
+    const { lang, projectType, investor, completionTime, q } = query || {};
     const keyword = q?.trim();
 
     const filters: Prisma.ProjectWhereInput[] = [];
     if (projectType && projectType !== 'ALL') {
-      filters.push({ projectType });
+      filters.push({
+        OR: [{ projectType }, { projectTypeEn: projectType }],
+      });
     }
     if (investor && investor !== 'ALL') {
-      filters.push({ investor });
+      filters.push({
+        OR: [{ investor }, { investorEn: investor }],
+      });
     }
     if (completionTime && completionTime !== 'ALL') {
-      filters.push({ completionTime });
+      filters.push({
+        OR: [{ completionTime }, { completionTimeEn: completionTime }],
+      });
     }
     if (keyword) {
       filters.push({
         OR: [
           { name: { contains: keyword, mode: 'insensitive' } },
+          { nameEn: { contains: keyword, mode: 'insensitive' } },
           { location: { contains: keyword, mode: 'insensitive' } },
+          { locationEn: { contains: keyword, mode: 'insensitive' } },
           { investor: { contains: keyword, mode: 'insensitive' } },
+          { investorEn: { contains: keyword, mode: 'insensitive' } },
         ],
       });
     }
@@ -107,34 +139,53 @@ export class ProjectsService {
     const [groupedTypes, groupedInvestors, groupedCompletions] =
       await Promise.all([
         this.prisma.project.groupBy({
-          by: ['projectType'],
+          by: ['projectType', 'projectTypeEn'],
           where: { projectType: { not: '' } },
         }),
         this.prisma.project.groupBy({
-          by: ['investor'],
+          by: ['investor', 'investorEn'],
           where: { investor: { not: '' } },
         }),
         this.prisma.project.groupBy({
-          by: ['completionTime'],
+          by: ['completionTime', 'completionTimeEn'],
           where: { completionTime: { not: '' } },
         }),
       ]);
 
     const filterOptions = {
-      projectTypes: groupedTypes.map((i) => i.projectType).filter(Boolean),
-      investors: groupedInvestors.map((i) => i.investor).filter(Boolean),
-      completionTimes: groupedCompletions
-        .map((i) => i.completionTime)
-        .filter(Boolean),
+      projectTypes: [
+        ...new Set(
+          groupedTypes
+            .map((i) => (lang === 'en' ? i.projectTypeEn || i.projectType : i.projectType))
+            .filter(Boolean),
+        ),
+      ],
+      investors: [
+        ...new Set(
+          groupedInvestors
+            .map((i) => (lang === 'en' ? i.investorEn || i.investor : i.investor))
+            .filter(Boolean),
+        ),
+      ],
+      completionTimes: [
+        ...new Set(
+          groupedCompletions
+            .map((i) =>
+              lang === 'en' ? i.completionTimeEn || i.completionTime : i.completionTime,
+            )
+            .filter(Boolean),
+        ),
+      ],
     };
 
     if (!pagination.enabled) {
       const items = await this.prisma.project.findMany({ where, orderBy });
+      const data = items.map((item) => this.localizeProject(item, lang));
       return {
-        data: items,
-        total: items.length,
+        data,
+        total: data.length,
         page: 1,
-        limit: items.length,
+        limit: data.length,
         totalPages: 1,
         filters: filterOptions,
       };
@@ -151,7 +202,7 @@ export class ProjectsService {
     ]);
 
     return {
-      data: items,
+      data: items.map((item) => this.localizeProject(item, lang)),
       total,
       page: pagination.page,
       limit: pagination.limit,
@@ -160,10 +211,10 @@ export class ProjectsService {
     };
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, lang?: 'vi' | 'en') {
     const project = await this.prisma.project.findUnique({ where: { id } });
     if (!project) throw new NotFoundException('Không tìm thấy dự án');
-    return project;
+    return this.localizeProject(project, lang);
   }
 
   async update(
@@ -239,18 +290,35 @@ export class ProjectsService {
       where: { id },
       data: {
         ...(body.name !== undefined && { name: body.name }),
+        ...(body.nameEn !== undefined && { nameEn: body.nameEn || null }),
         ...(body.investor !== undefined && { investor: body.investor }),
+        ...(body.investorEn !== undefined && {
+          investorEn: body.investorEn || null,
+        }),
         ...(body.projectType !== undefined && {
           projectType: body.projectType,
+        }),
+        ...(body.projectTypeEn !== undefined && {
+          projectTypeEn: body.projectTypeEn || null,
         }),
         ...(body.completionTime !== undefined && {
           completionTime: body.completionTime,
         }),
+        ...(body.completionTimeEn !== undefined && {
+          completionTimeEn: body.completionTimeEn || null,
+        }),
         ...(body.location !== undefined && { location: body.location }),
+        ...(body.locationEn !== undefined && {
+          locationEn: body.locationEn || null,
+        }),
         ...(body.description !== undefined && {
           description: body.description,
         }),
+        ...(body.descriptionEn !== undefined && {
+          descriptionEn: body.descriptionEn || null,
+        }),
         ...(body.area !== undefined && { area: body.area }),
+        ...(body.areaEn !== undefined && { areaEn: body.areaEn || null }),
         mainImages: finalMainImages,
         images: [...keptSubImages, ...newSubUrls],
         ...(body.revitLink !== undefined && {

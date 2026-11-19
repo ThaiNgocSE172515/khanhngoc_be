@@ -17,18 +17,27 @@ enum JobStatus {
 }
 
 model Job {
-  job_id           String   @id @default(uuid()) @db.Uuid
-  title            String
-  locations        String
-  quantity         String
-  salary           String
-  level            String
-  experience       String
-  created_at       DateTime @default(now())
-  updated_at       DateTime @updatedAt
-  descriptionHtml  String
-  requirementsHtml String
-  benefitsHtml     String
+  job_id             String   @id @default(uuid()) @db.Uuid
+  title              String
+  titleEn            String?
+  locations          String
+  locationsEn        String?
+  quantity           String
+  quantityEn         String?
+  salary             String
+  salaryEn           String?
+  level              String
+  levelEn            String?
+  experience         String
+  experienceEn       String?
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+  descriptionHtml    String
+  descriptionHtmlEn  String?
+  requirementsHtml   String
+  requirementsHtmlEn String?
+  benefitsHtml       String
+  benefitsHtmlEn     String?
 
   @@index([created_at(sort: Desc)])
   @@map("jobs")
@@ -52,21 +61,28 @@ model Applications {
 }
 
 model Project {
-  id             String   @id @default(uuid()) @db.Uuid
-  name           String
-  investor       String
-  projectType    String
-  completionTime String
-  location       String
-  description    String
-  area           String
-  mainImages     String[]
-  images         String[]
-  revitLink      String?
-  lat            String? 
-  lng            String?
-  created_at     DateTime @default(now())
-  updated_at     DateTime @updatedAt
+  id               String   @id @default(uuid()) @db.Uuid
+  name             String
+  nameEn           String?
+  investor         String
+  investorEn       String?
+  projectType      String
+  projectTypeEn    String?
+  completionTime   String
+  completionTimeEn String?
+  location         String
+  locationEn       String?
+  description      String
+  descriptionEn    String?
+  area             String
+  areaEn           String?
+  mainImages       String[]
+  images           String[]
+  revitLink        String?
+  lat              String?
+  lng              String?
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
 
   @@index([projectType])
   @@index([investor])
@@ -78,8 +94,11 @@ model Project {
 model Member {
   id         String   @id @default(uuid()) @db.Uuid
   name       String
+  nameEn     String?
   position   String
+  positionEn String?
   story      String
+  storyEn    String?
   image      String
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt

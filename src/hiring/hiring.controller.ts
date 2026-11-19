@@ -28,8 +28,8 @@ export class HiringController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.hiringService.findOne(id);
+  findOne(@Param('id') id: string, @Query('lang') lang?: 'vi' | 'en') {
+    return this.hiringService.findOne(id, lang);
   }
 
   @Patch(':id')

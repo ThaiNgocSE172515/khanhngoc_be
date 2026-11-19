@@ -41,6 +41,7 @@ export class ProjectsController {
   @Get()
   findAll(@Query() query: FindProjectsQueryDto) {
     return this.projectsService.findAll({
+      lang: query.lang,
       projectType: query.projectType || query.type,
       investor: query.investor,
       completionTime: query.completionTime,
@@ -51,8 +52,8 @@ export class ProjectsController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.projectsService.findOne(id);
+  findOne(@Param('id') id: string, @Query('lang') lang?: 'vi' | 'en') {
+    return this.projectsService.findOne(id, lang);
   }
 
   @Patch(':id')

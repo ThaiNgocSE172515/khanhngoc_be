@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, Job } from '@prisma/client';
 import { CreateHiringDto } from './dto/create-hiring.dto.js';
 import { UpdateHiringDto } from './dto/update-hiring.dto.js';
 import { PrismaService } from '../shared/prisma.service.js';
 import { normalizePagination, PaginationQuery } from '../shared/pagination.helper.js';
 
 export interface FindJobsQuery extends PaginationQuery {
+  lang?: 'vi' | 'en';
   q?: string;
   level?: string;
   location?: string;
@@ -14,6 +15,23 @@ export interface FindJobsQuery extends PaginationQuery {
 @Injectable()
 export class HiringService {
   constructor(private readonly prismaService: PrismaService) {}
+
+  private localizeJob(job: Job, lang?: 'vi' | 'en') {
+    if (lang !== 'en') return job;
+
+    return {
+      ...job,
+      title: job.titleEn || job.title,
+      locations: job.locationsEn || job.locations,
+      quantity: job.quantityEn || job.quantity,
+      salary: job.salaryEn || job.salary,
+      level: job.levelEn || job.level,
+      experience: job.experienceEn || job.experience,
+      descriptionHtml: job.descriptionHtmlEn || job.descriptionHtml,
+      requirementsHtml: job.requirementsHtmlEn || job.requirementsHtml,
+      benefitsHtml: job.benefitsHtmlEn || job.benefitsHtml,
+    };
+  }
 
   create(createHiringDto: CreateHiringDto) {
     return this.prismaService.job.create({
@@ -24,23 +42,37 @@ export class HiringService {
   }
 
   async findAll(query?: FindJobsQuery) {
+    const lang = query?.lang;
     const keyword = query?.q?.trim();
     const level = query?.level?.trim();
     const location = query?.location?.trim();
 
     const filters: Prisma.JobWhereInput[] = [];
     if (level && level !== 'ALL') {
-      filters.push({ level: { equals: level, mode: 'insensitive' } });
+      filters.push({
+        OR: [
+          { level: { equals: level, mode: 'insensitive' } },
+          { levelEn: { equals: level, mode: 'insensitive' } },
+        ],
+      });
     }
     if (location && location !== 'ALL') {
-      filters.push({ locations: { contains: location, mode: 'insensitive' } });
+      filters.push({
+        OR: [
+          { locations: { contains: location, mode: 'insensitive' } },
+          { locationsEn: { contains: location, mode: 'insensitive' } },
+        ],
+      });
     }
     if (keyword) {
       filters.push({
         OR: [
           { title: { contains: keyword, mode: 'insensitive' } },
+          { titleEn: { contains: keyword, mode: 'insensitive' } },
           { locations: { contains: keyword, mode: 'insensitive' } },
+          { locationsEn: { contains: keyword, mode: 'insensitive' } },
           { level: { contains: keyword, mode: 'insensitive' } },
+          { levelEn: { contains: keyword, mode: 'insensitive' } },
         ],
       });
     }
@@ -50,7 +82,8 @@ export class HiringService {
     const pagination = normalizePagination(query, 10, 100);
 
     if (!pagination.enabled) {
-      const data = await this.prismaService.job.findMany({ where, orderBy });
+      const rawData = await this.prismaService.job.findMany({ where, orderBy });
+      const data = rawData.map((item) => this.localizeJob(item, lang));
       return {
         data,
         total: data.length,
@@ -60,7 +93,7 @@ export class HiringService {
       };
     }
 
-    const [total, data] = await Promise.all([
+    const [total, rawData] = await Promise.all([
       this.prismaService.job.count({ where }),
       this.prismaService.job.findMany({
         where,
@@ -71,7 +104,7 @@ export class HiringService {
     ]);
 
     return {
-      data,
+      data: rawData.map((item) => this.localizeJob(item, lang)),
       total,
       page: pagination.page,
       limit: pagination.limit,
@@ -79,12 +112,14 @@ export class HiringService {
     };
   }
 
-  findOne(id: string) {
-    return this.prismaService.job.findUnique({
+  async findOne(id: string, lang?: 'vi' | 'en') {
+    const job = await this.prismaService.job.findUnique({
       where: {
         job_id: id,
       },
     });
+    if (!job) return null;
+    return this.localizeJob(job, lang);
   }
 
   update(id: string, updateHiringDto: UpdateHiringDto) {

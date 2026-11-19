@@ -35,8 +35,8 @@ export class MembersController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.membersService.findOne(id);
+  findOne(@Param('id') id: string, @Query('lang') lang?: 'vi' | 'en') {
+    return this.membersService.findOne(id, lang);
   }
 
   @Patch(':id')

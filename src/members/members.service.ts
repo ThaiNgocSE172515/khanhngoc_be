@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, Member } from '@prisma/client';
 import { PrismaService } from '../shared/prisma.service.js';
 import { SupabaseService } from '../shared/supabase.service.js';
 import { normalizePagination, PaginationQuery } from '../shared/pagination.helper.js';
@@ -11,6 +11,7 @@ import { CreateMemberDto } from './dto/create-member.dto.js';
 import { UpdateMemberDto } from './dto/update-member.dto.js';
 
 export interface FindMembersQuery extends PaginationQuery {
+  lang?: 'vi' | 'en';
   search?: string;
 }
 
@@ -20,6 +21,17 @@ export class MembersService {
     private readonly prisma: PrismaService,
     private readonly supabaseService: SupabaseService,
   ) {}
+
+  private localizeMember(member: Member, lang?: 'vi' | 'en') {
+    if (lang !== 'en') return member;
+
+    return {
+      ...member,
+      name: member.nameEn || member.name,
+      position: member.positionEn || member.position,
+      story: member.storyEn || member.story,
+    };
+  }
 
   async create(body: CreateMemberDto, file?: Express.Multer.File) {
     if (!file) {
@@ -34,8 +46,11 @@ export class MembersService {
     return this.prisma.member.create({
       data: {
         name: body.name,
+        nameEn: body.nameEn || null,
         position: body.position,
+        positionEn: body.positionEn || null,
         story: body.story || '',
+        storyEn: body.storyEn || null,
         image: imageUrl,
       },
     });
@@ -44,13 +59,16 @@ export class MembersService {
   async findAll(query?: FindMembersQuery | string) {
     const normalizedQuery: FindMembersQuery =
       typeof query === 'string' ? { search: query } : query || {};
+    const lang = normalizedQuery.lang;
     const keyword = normalizedQuery.search?.trim();
 
     const where: Prisma.MemberWhereInput | undefined = keyword
       ? {
           OR: [
             { name: { contains: keyword, mode: 'insensitive' } },
+            { nameEn: { contains: keyword, mode: 'insensitive' } },
             { position: { contains: keyword, mode: 'insensitive' } },
+            { positionEn: { contains: keyword, mode: 'insensitive' } },
           ],
         }
       : undefined;
@@ -59,7 +77,8 @@ export class MembersService {
     const pagination = normalizePagination(normalizedQuery, 12, 100);
 
     if (!pagination.enabled) {
-      const data = await this.prisma.member.findMany({ where, orderBy });
+      const rawData = await this.prisma.member.findMany({ where, orderBy });
+      const data = rawData.map((item) => this.localizeMember(item, lang));
       return {
         data,
         total: data.length,
@@ -69,7 +88,7 @@ export class MembersService {
       };
     }
 
-    const [total, data] = await Promise.all([
+    const [total, rawData] = await Promise.all([
       this.prisma.member.count({ where }),
       this.prisma.member.findMany({
         where,
@@ -80,7 +99,7 @@ export class MembersService {
     ]);
 
     return {
-      data,
+      data: rawData.map((item) => this.localizeMember(item, lang)),
       total,
       page: pagination.page,
       limit: pagination.limit,
@@ -88,12 +107,12 @@ export class MembersService {
     };
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, lang?: 'vi' | 'en') {
     const member = await this.prisma.member.findUnique({ where: { id } });
     if (!member) {
       throw new NotFoundException('Không tìm thấy thành viên');
     }
-    return member;
+    return this.localizeMember(member, lang);
   }
 
   async update(
@@ -112,8 +131,13 @@ export class MembersService {
       where: { id },
       data: {
         ...(body.name !== undefined && { name: body.name }),
+        ...(body.nameEn !== undefined && { nameEn: body.nameEn || null }),
         ...(body.position !== undefined && { position: body.position }),
+        ...(body.positionEn !== undefined && {
+          positionEn: body.positionEn || null,
+        }),
         ...(body.story !== undefined && { story: body.story }),
+        ...(body.storyEn !== undefined && { storyEn: body.storyEn || null }),
         image: imageUrl,
       },
     });

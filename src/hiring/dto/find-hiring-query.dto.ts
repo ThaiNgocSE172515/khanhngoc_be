@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { PaginationQueryDto } from '../../shared/dto/pagination-query.dto.js';
-import { IsOptional, IsString } from 'class-validator';
+import { IsIn, IsOptional, IsString } from 'class-validator';
 
 export class FindHiringQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({ example: '1', description: 'Trang hiện tại' })
@@ -8,6 +8,11 @@ export class FindHiringQueryDto extends PaginationQueryDto {
 
   @ApiPropertyOptional({ example: '10', description: 'Số lượng mỗi trang' })
   declare limit?: number;
+
+  @ApiPropertyOptional({ example: 'vi', enum: ['vi', 'en'], description: 'Ngôn ngữ trả về' })
+  @IsOptional()
+  @IsIn(['vi', 'en'])
+  lang?: 'vi' | 'en';
 
   @ApiPropertyOptional({ example: 'BIM', description: 'Từ khóa tìm kiếm' })
   @IsOptional()
