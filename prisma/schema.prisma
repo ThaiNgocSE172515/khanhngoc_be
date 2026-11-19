@@ -63,7 +63,7 @@ model Project {
   mainImages     String[]
   images         String[]
   revitLink      String?
-  lat            String?
+  lat            String? 
   lng            String?
   created_at     DateTime @default(now())
   updated_at     DateTime @updatedAt
