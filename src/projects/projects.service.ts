@@ -32,32 +32,54 @@ export class ProjectsService {
     };
   }
 
+  private parseStringArray(value: unknown): string[] {
+    if (Array.isArray(value)) {
+      return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+    }
+    if (typeof value === 'string' && value.trim()) {
+      try {
+        const parsed = JSON.parse(value);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+        }
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  }
+
   async create(
-    body: CreateProjectDto,
-    files: {
+    body: CreateProjectDto & { mainImages?: string[] | string; images?: string[] | string },
+    files?: {
       mainImages?: Express.Multer.File[];
       images?: Express.Multer.File[];
     },
   ) {
     const mainFiles = files?.mainImages || [];
     const subFiles = files?.images || [];
+    const bodyMainUrls = this.parseStringArray(body.mainImages);
+    const bodySubUrls = this.parseStringArray(body.images);
 
-    if (mainFiles.length === 0) {
+    const totalMain = mainFiles.length + bodyMainUrls.length;
+    const totalSub = subFiles.length + bodySubUrls.length;
+
+    if (totalMain === 0) {
       throw new BadRequestException('Vui lòng tải lên ít nhất 1 ảnh chính');
     }
-    if (mainFiles.length > 3 || subFiles.length > 15) {
+    if (totalMain > 3 || totalSub > 15) {
       throw new BadRequestException(
         'Ảnh chính tối đa 3 hình và ảnh phụ tối đa 15 hình',
       );
     }
 
-    const mainImageUrls = await Promise.all(
+    const uploadedMainUrls = await Promise.all(
       mainFiles.map((file) =>
         this.supabaseService.uploadProjectImage(file, 'main'),
       ),
     );
 
-    const subImageUrls = await Promise.all(
+    const uploadedSubUrls = await Promise.all(
       subFiles.map((file) =>
         this.supabaseService.uploadProjectImage(file, 'gallery'),
       ),
@@ -82,8 +104,8 @@ export class ProjectsService {
         revitLink: body.revitLink || null,
         lat: body.lat || null,
         lng: body.lng || null,
-        mainImages: mainImageUrls,
-        images: subImageUrls,
+        mainImages: [...bodyMainUrls, ...uploadedMainUrls],
+        images: [...bodySubUrls, ...uploadedSubUrls],
       },
     });
   }
@@ -156,7 +178,9 @@ export class ProjectsService {
       projectTypes: [
         ...new Set(
           groupedTypes
-            .map((i) => (lang === 'en' ? i.projectTypeEn || i.projectType : i.projectType))
+            .map((i) =>
+              lang === 'en' ? i.projectTypeEn || i.projectType : i.projectType,
+            )
             .filter(Boolean),
         ),
       ],
@@ -171,7 +195,9 @@ export class ProjectsService {
         ...new Set(
           groupedCompletions
             .map((i) =>
-              lang === 'en' ? i.completionTimeEn || i.completionTime : i.completionTime,
+              lang === 'en'
+                ? i.completionTimeEn || i.completionTime
+                : i.completionTime,
             )
             .filter(Boolean),
         ),
@@ -219,8 +245,8 @@ export class ProjectsService {
 
   async update(
     id: string,
-    body: UpdateProjectDto,
-    files: {
+    body: UpdateProjectDto & { mainImages?: string[] | string; images?: string[] | string },
+    files?: {
       mainImages?: Express.Multer.File[];
       images?: Express.Multer.File[];
     },
@@ -230,12 +256,14 @@ export class ProjectsService {
 
     // 1. Xử lý tối đa 3 ảnh chính
     let keptMainImages: string[] = existing.mainImages || [];
-    if (body.existingMainImages !== undefined) {
-      try {
-        keptMainImages = JSON.parse(body.existingMainImages);
-      } catch {
-        keptMainImages = [];
-      }
+    if (body.mainImages !== undefined) {
+      keptMainImages = this.parseStringArray(body.mainImages);
+      const removedMain = (existing.mainImages || []).filter(
+        (url) => !keptMainImages.includes(url),
+      );
+      filesToDelete.push(...removedMain);
+    } else if (body.existingMainImages !== undefined) {
+      keptMainImages = this.parseStringArray(body.existingMainImages);
       const removedMain = (existing.mainImages || []).filter(
         (url) => !keptMainImages.includes(url),
       );
@@ -259,12 +287,14 @@ export class ProjectsService {
 
     // 2. Xử lý tối đa 15 ảnh phụ
     let keptSubImages: string[] = existing.images || [];
-    if (body.existingImages !== undefined) {
-      try {
-        keptSubImages = JSON.parse(body.existingImages);
-      } catch {
-        keptSubImages = [];
-      }
+    if (body.images !== undefined) {
+      keptSubImages = this.parseStringArray(body.images);
+      const removedSub = (existing.images || []).filter(
+        (url) => !keptSubImages.includes(url),
+      );
+      filesToDelete.push(...removedSub);
+    } else if (body.existingImages !== undefined) {
+      keptSubImages = this.parseStringArray(body.existingImages);
       const removedSub = (existing.images || []).filter(
         (url) => !keptSubImages.includes(url),
       );
