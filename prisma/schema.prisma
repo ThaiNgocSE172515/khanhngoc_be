@@ -1,9 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -33,6 +30,7 @@ model Job {
   requirementsHtml String
   benefitsHtml     String
 
+  @@index([created_at(sort: Desc)])
   @@map("jobs")
 }
 
@@ -47,6 +45,10 @@ model Applications {
   cvUrl         String?
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
+
+  @@index([status])
+  @@index([created_at(sort: Desc)])
+  @@map("applications")
 }
 
 model Project {
@@ -61,9 +63,15 @@ model Project {
   mainImages     String[]
   images         String[]
   revitLink      String?
+  lat            String?
+  lng            String?
   created_at     DateTime @default(now())
   updated_at     DateTime @updatedAt
 
+  @@index([projectType])
+  @@index([investor])
+  @@index([completionTime])
+  @@index([created_at(sort: Desc)])
   @@map("projects")
 }
 
@@ -76,6 +84,7 @@ model Member {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
+  @@index([created_at(sort: Desc)])
   @@map("members")
 }
 
@@ -91,4 +100,7 @@ model User {
   role      Role     @default(USER)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([role])
+  @@map("users")
 }

@@ -6,10 +6,12 @@ import {
   Patch,
   Param,
   Delete,
+  Query,
 } from '@nestjs/common';
 import { HiringService } from './hiring.service.js';
 import { CreateHiringDto } from './dto/create-hiring.dto.js';
 import { UpdateHiringDto } from './dto/update-hiring.dto.js';
+import { FindHiringQueryDto } from './dto/find-hiring-query.dto.js';
 
 @Controller('hiring')
 export class HiringController {
@@ -21,8 +23,8 @@ export class HiringController {
   }
 
   @Get()
-  findAll() {
-    return this.hiringService.findAll();
+  findAll(@Query() query: FindHiringQueryDto) {
+    return this.hiringService.findAll(query);
   }
 
   @Get(':id')

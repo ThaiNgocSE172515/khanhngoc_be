@@ -6,6 +6,7 @@ import {
   Patch,
   Param,
   Delete,
+  Query,
   UseInterceptors,
   BadRequestException,
   UploadedFile,
@@ -13,6 +14,7 @@ import {
 import { ApplicationsService } from './applications.service.js';
 import { CreateApplicationDto } from './dto/create-application.dto.js';
 import { UpdateApplicationDto } from './dto/update-application.dto.js';
+import { FindApplicationsQueryDto } from './dto/find-applications-query.dto.js';
 import { FileInterceptor } from '@nestjs/platform-express';
 
 const ALLOWED_MIMES = [
@@ -48,8 +50,8 @@ export class ApplicationsController {
   }
 
   @Get()
-  findAll() {
-    return this.applicationsService.findAll();
+  findAll(@Query() query: FindApplicationsQueryDto) {
+    return this.applicationsService.findAll(query);
   }
 
   @Get(':id')

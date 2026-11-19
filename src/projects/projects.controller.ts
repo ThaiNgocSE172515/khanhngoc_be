@@ -12,6 +12,9 @@ import {
 } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { ProjectsService } from './projects.service.js';
+import { CreateProjectDto } from './dto/create-project.dto.js';
+import { UpdateProjectDto } from './dto/update-project.dto.js';
+import { FindProjectsQueryDto } from './dto/find-projects-query.dto.js';
 
 @Controller('projects')
 export class ProjectsController {
@@ -21,11 +24,11 @@ export class ProjectsController {
   @UseInterceptors(
     FileFieldsInterceptor([
       { name: 'mainImages', maxCount: 3 },
-      { name: 'images', maxCount: 3 },
+      { name: 'images', maxCount: 15 },
     ]),
   )
   create(
-    @Body() body: any,
+    @Body() body: CreateProjectDto,
     @UploadedFiles()
     files: {
       mainImages?: Express.Multer.File[];
@@ -36,23 +39,14 @@ export class ProjectsController {
   }
 
   @Get()
-  findAll(
-    @Query('projectType') projectType?: string,
-    @Query('investor') investor?: string,
-    @Query('completionTime') completionTime?: string,
-    @Query('q') q?: string,
-    @Query('search') search?: string,
-    @Query('type') type?: string,
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
-  ) {
+  findAll(@Query() query: FindProjectsQueryDto) {
     return this.projectsService.findAll({
-      projectType: projectType || type,
-      investor,
-      completionTime,
-      q: q || search,
-      page: page ? Number(page) : undefined,
-      limit: limit ? Number(limit) : undefined,
+      projectType: query.projectType || query.type,
+      investor: query.investor,
+      completionTime: query.completionTime,
+      q: query.q || query.search,
+      page: query.page,
+      limit: query.limit,
     });
   }
 
@@ -65,12 +59,12 @@ export class ProjectsController {
   @UseInterceptors(
     FileFieldsInterceptor([
       { name: 'mainImages', maxCount: 3 },
-      { name: 'images', maxCount: 3 },
+      { name: 'images', maxCount: 15 },
     ]),
   )
   update(
     @Param('id') id: string,
-    @Body() body: any,
+    @Body() body: UpdateProjectDto,
     @UploadedFiles()
     files: {
       mainImages?: Express.Multer.File[];

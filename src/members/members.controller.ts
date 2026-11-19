@@ -14,6 +14,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { MembersService } from './members.service.js';
 import { CreateMemberDto } from './dto/create-member.dto.js';
 import { UpdateMemberDto } from './dto/update-member.dto.js';
+import { FindMembersQueryDto } from './dto/find-members-query.dto.js';
 
 @Controller('members')
 export class MembersController {
@@ -29,8 +30,8 @@ export class MembersController {
   }
 
   @Get()
-  findAll(@Query('search') search?: string) {
-    return this.membersService.findAll(search);
+  findAll(@Query() query: FindMembersQueryDto) {
+    return this.membersService.findAll(query);
   }
 
   @Get(':id')

@@ -6,6 +6,9 @@ import {
 import { PrismaService } from '../shared/prisma.service.js';
 import { SupabaseService } from '../shared/supabase.service.js';
 import { CreateProjectDto } from './dto/create-project.dto.js';
+import { UpdateProjectDto } from './dto/update-project.dto.js';
+import { normalizePagination } from '../shared/pagination.helper.js';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class ProjectsService {
@@ -27,9 +30,9 @@ export class ProjectsService {
     if (mainFiles.length === 0) {
       throw new BadRequestException('Vui lòng tải lên ít nhất 1 ảnh chính');
     }
-    if (mainFiles.length > 3 || subFiles.length > 3) {
+    if (mainFiles.length > 3 || subFiles.length > 15) {
       throw new BadRequestException(
-        'Mỗi loại chỉ được tải lên tối đa 3 hình ảnh',
+        'Ảnh chính tối đa 3 hình và ảnh phụ tối đa 15 hình',
       );
     }
 
@@ -54,7 +57,9 @@ export class ProjectsService {
         location: body.location,
         description: body.description || '',
         area: body.area,
-        revitLink: body.revitLink,
+        revitLink: body.revitLink || null,
+        lat: body.lat || null,
+        lng: body.lng || null,
         mainImages: mainImageUrls,
         images: subImageUrls,
       },
@@ -66,90 +71,92 @@ export class ProjectsService {
     investor?: string;
     completionTime?: string;
     q?: string;
-    page?: number;
-    limit?: number;
+    page?: number | string;
+    limit?: number | string;
   }) {
-    const { projectType, investor, completionTime, q, page, limit } =
-      query || {};
-
+    const { projectType, investor, completionTime, q } = query || {};
     const keyword = q?.trim();
 
-    const where: any = {
-      AND: [
-        projectType && projectType !== 'ALL' ? { projectType } : {},
-        investor && investor !== 'ALL' ? { investor } : {},
-        completionTime && completionTime !== 'ALL' ? { completionTime } : {},
-        keyword
-          ? {
-              OR: [
-                { name: { contains: keyword, mode: 'insensitive' } },
-                { location: { contains: keyword, mode: 'insensitive' } },
-                { investor: { contains: keyword, mode: 'insensitive' } },
-              ],
-            }
-          : {},
-      ],
+    const filters: Prisma.ProjectWhereInput[] = [];
+    if (projectType && projectType !== 'ALL') {
+      filters.push({ projectType });
+    }
+    if (investor && investor !== 'ALL') {
+      filters.push({ investor });
+    }
+    if (completionTime && completionTime !== 'ALL') {
+      filters.push({ completionTime });
+    }
+    if (keyword) {
+      filters.push({
+        OR: [
+          { name: { contains: keyword, mode: 'insensitive' } },
+          { location: { contains: keyword, mode: 'insensitive' } },
+          { investor: { contains: keyword, mode: 'insensitive' } },
+        ],
+      });
+    }
+
+    const where: Prisma.ProjectWhereInput =
+      filters.length > 0 ? { AND: filters } : {};
+    const orderBy: Prisma.ProjectOrderByWithRelationInput = {
+      created_at: 'desc',
     };
+    const pagination = normalizePagination(query, 9, 100);
 
-    // Lấy danh sách giá trị duy nhất cho 3 ô select filter
-    const [allTypes, allInvestors, allCompletions] = await Promise.all([
-      this.prisma.project.findMany({
-        select: { projectType: true },
-        distinct: ['projectType'],
-      }),
-      this.prisma.project.findMany({
-        select: { investor: true },
-        distinct: ['investor'],
-      }),
-      this.prisma.project.findMany({
-        select: { completionTime: true },
-        distinct: ['completionTime'],
-      }),
-    ]);
+    const [groupedTypes, groupedInvestors, groupedCompletions] =
+      await Promise.all([
+        this.prisma.project.groupBy({
+          by: ['projectType'],
+          where: { projectType: { not: '' } },
+        }),
+        this.prisma.project.groupBy({
+          by: ['investor'],
+          where: { investor: { not: '' } },
+        }),
+        this.prisma.project.groupBy({
+          by: ['completionTime'],
+          where: { completionTime: { not: '' } },
+        }),
+      ]);
 
-    const filters = {
-      projectTypes: allTypes.map((i) => i.projectType).filter(Boolean),
-      investors: allInvestors.map((i) => i.investor).filter(Boolean),
-      completionTimes: allCompletions
+    const filterOptions = {
+      projectTypes: groupedTypes.map((i) => i.projectType).filter(Boolean),
+      investors: groupedInvestors.map((i) => i.investor).filter(Boolean),
+      completionTimes: groupedCompletions
         .map((i) => i.completionTime)
         .filter(Boolean),
     };
 
-    // Nếu không truyền page/limit (ví dụ trang Admin lấy toàn bộ)
-    if (!page || !limit) {
-      const items = await this.prisma.project.findMany({
-        where,
-        orderBy: { created_at: 'desc' },
-      });
+    if (!pagination.enabled) {
+      const items = await this.prisma.project.findMany({ where, orderBy });
       return {
         data: items,
         total: items.length,
         page: 1,
+        limit: items.length,
         totalPages: 1,
-        filters,
+        filters: filterOptions,
       };
     }
-
-    const currentPage = Math.max(1, page);
-    const take = Math.max(1, limit);
-    const skip = (currentPage - 1) * take;
 
     const [total, items] = await Promise.all([
       this.prisma.project.count({ where }),
       this.prisma.project.findMany({
         where,
-        orderBy: { created_at: 'desc' },
-        skip,
-        take,
+        orderBy,
+        skip: pagination.skip,
+        take: pagination.limit,
       }),
     ]);
 
     return {
       data: items,
       total,
-      page: currentPage,
-      totalPages: Math.max(1, Math.ceil(total / take)),
-      filters,
+      page: pagination.page,
+      limit: pagination.limit,
+      totalPages: Math.max(1, Math.ceil(total / pagination.limit)),
+      filters: filterOptions,
     };
   }
 
@@ -161,7 +168,7 @@ export class ProjectsService {
 
   async update(
     id: string,
-    body: any,
+    body: UpdateProjectDto,
     files: {
       mainImages?: Express.Multer.File[];
       images?: Express.Multer.File[];
@@ -199,7 +206,7 @@ export class ProjectsService {
       throw new BadRequestException('Dự án phải có ít nhất 1 ảnh chính');
     }
 
-    // 2. Xử lý tối đa 3 ảnh phụ
+    // 2. Xử lý tối đa 15 ảnh phụ
     let keptSubImages: string[] = existing.images || [];
     if (body.existingImages !== undefined) {
       try {
@@ -214,8 +221,8 @@ export class ProjectsService {
     }
 
     const newSubFiles = files?.images || [];
-    if (keptSubImages.length + newSubFiles.length > 3) {
-      throw new BadRequestException('Ảnh phụ tối đa 3 hình');
+    if (keptSubImages.length + newSubFiles.length > 15) {
+      throw new BadRequestException('Ảnh phụ tối đa 15 hình');
     }
 
     const newSubUrls = await Promise.all(
@@ -248,6 +255,12 @@ export class ProjectsService {
         images: [...keptSubImages, ...newSubUrls],
         ...(body.revitLink !== undefined && {
           revitLink: body.revitLink || null,
+        }),
+        ...(body.lat !== undefined && {
+          lat: body.lat || null,
+        }),
+        ...(body.lng !== undefined && {
+          lng: body.lng || null,
         }),
       },
     });
