@@ -8,6 +8,7 @@ import { ApplicationsModule } from './applications/applications.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
 import { MembersModule } from './members/members.module.js';
 import { AuthModule } from './auth/auth.module.js';
+import { ContactsModule } from './contacts/contacts.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -27,6 +28,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     ProjectsModule,
     MembersModule,
     AuthModule,
+    ContactsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

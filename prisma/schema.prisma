@@ -123,3 +123,36 @@ model User {
   @@index([role])
   @@map("users")
 }
+
+enum ContactType {
+  CONTACT
+  PROFILE
+}
+
+model Contact {
+  id          String      @id @default(uuid()) @db.Uuid
+  type        ContactType @default(CONTACT)
+  name        String
+  phone       String
+  email       String
+  address     String?
+  message     String?
+
+  company     String?
+  mst         String?
+  field       String?
+  strength    String?
+  revenuePrev String?
+  revenuePlan String?
+  link        String?
+  note        String?
+
+  status      String      @default("pending")
+  created_at  DateTime    @default(now())
+  updated_at  DateTime    @updatedAt
+
+  @@index([type])
+  @@index([status])
+  @@index([created_at(sort: Desc)])
+  @@map("contacts")
+}
