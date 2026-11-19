@@ -10,19 +10,22 @@ export class PrismaService
   implements OnModuleInit, OnModuleDestroy
 {
   private readonly pool: Pool;
+
   constructor() {
     const pool = new Pool({
       connectionString: envInstance.DATABASE_URL,
-      max: 30, //MỞ CỔNG TỐI ĐA
-      connectionTimeoutMillis: 5000, //THỜI GIAN CHỜ, MỞ KẾT NỐI
+      max: 5,
+      idleTimeoutMillis: 30000,
     });
     const adapter = new PrismaPg(pool);
     super({ adapter });
     this.pool = pool;
   }
+
   async onModuleInit() {
     await this.$connect();
   }
+
   async onModuleDestroy() {
     await this.$disconnect();
     await this.pool.end();
