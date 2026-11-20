@@ -11,6 +11,7 @@ function setupApp(app: INestApplication) {
       'http://localhost:3000',
       'http://localhost:5174',
       'https://khanh-ngoc.vercel.app',
+      'https://turret-elude-consuming.ngrok-free.dev'
     ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: 'Content-Type, Accept, Authorization',
