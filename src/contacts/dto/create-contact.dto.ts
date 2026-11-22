@@ -83,3 +83,4 @@ export class CreateContactDto {
   @IsString()
   status?: string = 'pending';
 }
+

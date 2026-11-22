@@ -1,17 +1,144 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { Resend } from 'resend';
 import { CreateContactDto } from './dto/create-contact.dto.js';
 import { UpdateContactDto } from './dto/update-contact.dto.js';
 import { FindContactsQueryDto } from './dto/find-contacts-query.dto.js';
 import { PrismaService } from '../shared/prisma.service.js';
 import { normalizePagination } from '../shared/pagination.helper.js';
+import envInstance from '../shared/env.config.js';
 
 @Injectable()
 export class ContactsService {
+  private readonly logger = new Logger(ContactsService.name);
+  private readonly resend = new Resend(envInstance.RESEND_API_KEY);
+
   constructor(private readonly prismaService: PrismaService) {}
 
+  private escapeHtml(val?: string | number | null): string {
+    if (val === null || val === undefined) return '';
+    return String(val)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  private async sendNotificationEmail(contact: Record<string, any>) {
+    if (!this.resend) {
+      this.logger.warn('Chưa cấu hình RESEND_API_KEY, bỏ qua gửi email.');
+      return;
+    }
+
+    const receiver =
+      envInstance.CONTACT_RECEIVER_EMAIL || 'khanhngoc.dtngoc@gmail.com';
+
+    const typeLabelMap: Record<string, string> = {
+      contact: 'Liên hệ tư vấn',
+      profile: 'Hồ sơ năng lực / Nhà thầu',
+      tender: 'Mời thầu / Báo giá',
+    };
+    const typeLabel =
+      typeLabelMap[String(contact.type || '').toLowerCase()] ||
+      contact.type ||
+      'Liên hệ mới';
+
+    const extraRows = [
+      { label: 'Công ty / Đơn vị', value: contact.company },
+      { label: 'Mã số thuế (MST)', value: contact.mst },
+      { label: 'Địa chỉ', value: contact.address },
+      { label: 'Lĩnh vực hoạt động', value: contact.field },
+      { label: 'Năng lực / Thế mạnh', value: contact.strength },
+      { label: 'Doanh thu năm trước', value: contact.revenuePrev },
+      { label: 'Kế hoạch doanh thu', value: contact.revenuePlan },
+      { label: 'Link hồ sơ / Website', value: contact.link, isLink: true },
+      { label: 'Ghi chú thêm', value: contact.note },
+    ]
+      .filter(
+        (item) =>
+          item.value !== null &&
+          item.value !== undefined &&
+          String(item.value).trim() !== '',
+      )
+      .map(
+        (item) => `
+          <tr>
+            <td style="padding: 8px 12px; border: 1px solid #e2e8f0; font-weight: bold; width: 35%; background: #f8fafc;">
+              ${item.label}
+            </td>
+            <td style="padding: 8px 12px; border: 1px solid #e2e8f0;">
+              ${
+                item.isLink
+                  ? `<a href="${this.escapeHtml(item.value)}" target="_blank">${this.escapeHtml(item.value)}</a>`
+                  : this.escapeHtml(item.value)
+              }
+            </td>
+          </tr>`,
+      )
+      .join('');
+
+    try {
+      const { error } = await this.resend.emails.send({
+        from: 'noreply@triageflow.me',
+        to: [receiver],
+        ...(contact.email?.trim() ? { replyTo: contact.email.trim() } : {}),
+        subject: `[${typeLabel}] ${this.escapeHtml(contact.name)} - ${this.escapeHtml(contact.phone)}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #14233A; max-width: 640px;">
+            <h2 style="color: #073763; border-bottom: 2px solid #073763; padding-bottom: 8px; margin-bottom: 16px;">
+              Thông báo ${this.escapeHtml(typeLabel)} mới
+            </h2>
+
+            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+              <tr>
+                <td style="padding: 8px 12px; border: 1px solid #e2e8f0; font-weight: bold; width: 35%; background: #f8fafc;">
+                  Người liên hệ
+                </td>
+                <td style="padding: 8px 12px; border: 1px solid #e2e8f0;">
+                  ${this.escapeHtml(contact.name)}
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 12px; border: 1px solid #e2e8f0; font-weight: bold; background: #f8fafc;">
+                  Số điện thoại
+                </td>
+                <td style="padding: 8px 12px; border: 1px solid #e2e8f0;">
+                  <a href="tel:${this.escapeHtml(contact.phone)}">${this.escapeHtml(contact.phone)}</a>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 12px; border: 1px solid #e2e8f0; font-weight: bold; background: #f8fafc;">
+                  Email
+                </td>
+                <td style="padding: 8px 12px; border: 1px solid #e2e8f0;">
+                  ${contact.email ? this.escapeHtml(contact.email) : 'Không cung cấp'}
+                </td>
+              </tr>
+              ${extraRows}
+            </table>
+
+            ${
+              contact.message
+                ? `<div style="margin-top: 16px; padding: 14px; background: #f3f6fa; border-left: 4px solid #073763; border-radius: 6px;">
+                    <strong>Nội dung lời nhắn:</strong>
+                    <p style="white-space: pre-line; margin: 6px 0 0;">${this.escapeHtml(contact.message)}</p>
+                  </div>`
+                : ''
+            }
+          </div>
+        `,
+      });
+
+      if (error) {
+        this.logger.error(`Gửi email Resend thất bại: ${error.message}`);
+      }
+    } catch (err: any) {
+      this.logger.error(`Lỗi gọi Resend API: ${err?.message || err}`);
+    }
+  }
+
   async create(createContactDto: CreateContactDto) {
-    return this.prismaService.contact.create({
+    const created = await this.prismaService.contact.create({
       data: {
         type: createContactDto.type as any,
         name: createContactDto.name,
@@ -30,6 +157,11 @@ export class ContactsService {
         status: createContactDto.status || 'pending',
       },
     });
+
+    // Gửi email thông báo cho chủ doanh nghiệp (không chặn response nếu mail chậm)
+    void this.sendNotificationEmail(created);
+
+    return created;
   }
 
   async findAll(query?: FindContactsQueryDto) {

@@ -12,6 +12,10 @@ class EnvClass {
   SUPABASE_KEY: string;
   @IsString({ message: 'Thiếu SUPABASE_URL TRONG FILE .ENV' })
   SUPABASE_URL: string;
+  @IsString({ message: 'Thiếu CONTACT_RECEIVER_EMAIL TRONG FILE .ENV' })
+  CONTACT_RECEIVER_EMAIL: string;
+  @IsString({ message: 'Thiếu RESEND_API_KEY TRONG FILE .ENV' })
+  RESEND_API_KEY: string;
 
 }
 
