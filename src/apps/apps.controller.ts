@@ -1,3 +1,4 @@
+// apps.controller.ts
 import {
   Body,
   Controller,
@@ -12,8 +13,11 @@ import {
 } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
+import { R2Service } from '../shared/r2.service.js';
 import { AppsService } from './apps.service.js';
+import { CreateAppFromUploadDto } from './dto/create-app-from-upload.dto.js';
 import { CreateAppDto } from './dto/create-app.dto.js';
+import { PresignAppDto } from './dto/presign-app.dto.js';
 import { UpdateAppDto } from './dto/update-app.dto.js';
 
 // Cho phép file ứng dụng tối đa 500MB, ảnh tối đa 10MB
@@ -21,7 +25,24 @@ const MAX_UPLOAD_SIZE = 500 * 1024 * 1024;
 
 @Controller('apps')
 export class AppsController {
-  constructor(private readonly appsService: AppsService) {}
+  constructor(
+    private readonly appsService: AppsService,
+    private readonly r2: R2Service,
+  ) {}
+
+  @Post('presign')
+  getPresignedUrl(@Body() body: PresignAppDto) {
+    return this.r2.createPresignedUploadUrl({
+      fileName: body.fileName,
+      contentType: body.contentType,
+      folder: body.folder || 'apps',
+    });
+  }
+
+  @Post('from-upload')
+  createFromUpload(@Body() body: CreateAppFromUploadDto) {
+    return this.appsService.createFromUploadedFile(body);
+  }
 
   @Post()
   @UseInterceptors(

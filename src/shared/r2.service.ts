@@ -4,6 +4,7 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import * as path from 'path';
@@ -42,9 +43,46 @@ export class R2Service {
     return `${Date.now()}-${randomUUID().slice(0, 8)}-${base}${ext}`;
   }
 
-  /**
-   * Upload file lớn (50MB+) bằng multipart upload để tránh timeout/lỗi chunk
-   */
+  async createPresignedUploadUrl(params: {
+    fileName: string;
+    contentType?: string;
+    folder?: 'apps' | 'app-icons';
+    expiresInSeconds?: number;
+  }): Promise<{
+    uploadUrl: string;
+    publicUrl: string;
+    key: string;
+    fileName: string;
+  }> {
+    const folder = params.folder || 'apps';
+    const key = `${folder}/${this.sanitizeFileName(params.fileName)}`;
+    const contentType = params.contentType || 'application/octet-stream';
+
+    try {
+      const command = new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        ContentType: contentType,
+      });
+
+      const uploadUrl = await getSignedUrl(this.s3, command, {
+        expiresIn: params.expiresInSeconds ?? 600,
+      });
+
+      return {
+        uploadUrl,
+        publicUrl: this.buildPublicUrl(key),
+        key,
+        fileName: params.fileName,
+      };
+    } catch (err) {
+      console.error('R2 createPresignedUploadUrl error:', err);
+      throw new InternalServerErrorException(
+        'Không thể tạo liên kết tải file lên R2',
+      );
+    }
+  }
+
   async uploadLargeFile(
     file: Express.Multer.File,
     folder = 'apps',
@@ -62,7 +100,7 @@ export class R2Service {
           ContentType: file.mimetype || 'application/octet-stream',
         },
         queueSize: 4,
-        partSize: 10 * 1024 * 1024, // 10MB mỗi part cho file >= 50MB
+        partSize: 10 * 1024 * 1024,
         leavePartsOnError: false,
       });
 
@@ -82,9 +120,6 @@ export class R2Service {
     }
   }
 
-  /**
-   * Upload ảnh icon ứng dụng (tùy chọn)
-   */
   async uploadImage(
     file: Express.Multer.File,
     folder = 'app-icons',

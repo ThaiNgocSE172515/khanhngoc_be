@@ -1,3 +1,4 @@
+// apps.service.ts
 import {
   BadRequestException,
   Injectable,
@@ -6,6 +7,7 @@ import {
 import { AppRelease, Prisma } from '@prisma/client';
 import { PrismaService } from '../shared/prisma.service.js';
 import { R2Service } from '../shared/r2.service.js';
+import { CreateAppFromUploadDto } from './dto/create-app-from-upload.dto.js';
 import { CreateAppDto } from './dto/create-app.dto.js';
 import { UpdateAppDto } from './dto/update-app.dto.js';
 
@@ -21,6 +23,31 @@ export class AppsService {
       ...item,
       fileSize: Number(item.fileSize),
     };
+  }
+
+  async createFromUploadedFile(input: CreateAppFromUploadDto) {
+    if (!input.name?.trim()) {
+      throw new BadRequestException('Vui lòng nhập tên ứng dụng');
+    }
+    if (!input.fileUrl || !input.fileKey || !input.fileName) {
+      throw new BadRequestException('Thiếu thông tin file ứng dụng đã tải lên');
+    }
+
+    const created = await this.prisma.appRelease.create({
+      data: {
+        name: input.name.trim(),
+        version: input.version?.trim() || null,
+        platform: input.platform?.trim() || null,
+        description: input.description?.trim() || null,
+        iconUrl: input.iconUrl?.trim() || null,
+        fileUrl: input.fileUrl,
+        fileKey: input.fileKey,
+        fileName: input.fileName,
+        fileSize: BigInt(input.fileSize),
+      },
+    });
+
+    return this.serializeApp(created);
   }
 
   async create(
@@ -120,7 +147,14 @@ export class AppsService {
     let fileName = existing.fileName;
     let fileSize = existing.fileSize;
 
-    if (newAppFile) {
+    if (body.fileUrl && body.fileKey) {
+      await this.r2.deleteByKey(existing.fileKey);
+      fileUrl = body.fileUrl;
+      fileKey = body.fileKey;
+      fileName = body.fileName || existing.fileName;
+      fileSize =
+        body.fileSize !== undefined ? BigInt(body.fileSize) : existing.fileSize;
+    } else if (newAppFile) {
       const uploadedApp = await this.r2.uploadLargeFile(newAppFile, 'apps');
       await this.r2.deleteByKey(existing.fileKey);
       fileUrl = uploadedApp.url;
@@ -140,7 +174,12 @@ export class AppsService {
       if (oldIconKey) await this.r2.deleteByKey(oldIconKey);
       iconUrl = null;
     } else if (body.iconUrl !== undefined) {
-      iconUrl = body.iconUrl.trim() || null;
+      const oldIconKey = this.r2.extractKeyFromUrl(existing.iconUrl);
+      const nextIconUrl = body.iconUrl?.trim() || null;
+      if (oldIconKey && oldIconKey !== this.r2.extractKeyFromUrl(nextIconUrl)) {
+        await this.r2.deleteByKey(oldIconKey);
+      }
+      iconUrl = nextIconUrl;
     }
 
     const updated = await this.prisma.appRelease.update({
