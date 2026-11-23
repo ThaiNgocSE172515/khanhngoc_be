@@ -1,6 +1,12 @@
 import { ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsBoolean, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
 import { CreateAppDto } from './create-app.dto.js';
 
 export class UpdateAppDto extends PartialType(
@@ -10,7 +16,7 @@ export class UpdateAppDto extends PartialType(
   @IsOptional()
   @IsString()
   iconUrl?: string | null;
-
+ 
   @ApiPropertyOptional()
   @IsOptional()
   @Transform(({ value }) => value === true || value === 'true')
