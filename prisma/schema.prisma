@@ -156,3 +156,20 @@ model Contact {
   @@index([created_at(sort: Desc)])
   @@map("contacts")
 }
+
+model AppRelease {
+  id           String   @id @default(uuid())
+  name         String
+  version      String?
+  platform     String?  // VD: Windows, Android, macOS, Linux
+  description  String?
+  iconUrl      String?  // Hình ảnh ứng dụng - có thể để trống
+  fileUrl      String   // Link tải file ứng dụng trên R2
+  fileKey      String   // Object key trên R2 để xóa/thay thế khi cần
+  fileName     String   // Tên file gốc
+  fileSize     BigInt   // Dung lượng (bytes), hỗ trợ file lớn >= 50MB
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("app_releases")
+}
