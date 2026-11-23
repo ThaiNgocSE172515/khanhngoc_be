@@ -5,17 +5,26 @@ import {
 } from '@nestjs/common';
 import { Prisma, Project } from '@prisma/client';
 import { PrismaService } from '../shared/prisma.service.js';
-import { SupabaseService } from '../shared/supabase.service.js';
+import { R2Service } from '../shared/r2.service.js';
 import { CreateProjectDto } from './dto/create-project.dto.js';
 import { UpdateProjectDto } from './dto/update-project.dto.js';
+import { PresignProjectDto } from './dto/presign-project.dto.js';
 import { normalizePagination } from '../shared/pagination.helper.js';
 
 @Injectable()
 export class ProjectsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly supabaseService: SupabaseService,
+    private readonly r2Service: R2Service,
   ) {}
+
+  async createPresignedUploadUrl(body: PresignProjectDto) {
+    return this.r2Service.createPresignedUploadUrl({
+      fileName: body.fileName,
+      contentType: body.contentType || 'image/jpeg',
+      folder: body.folder || 'projects/gallery',
+    });
+  }
 
   private localizeProject(project: Project, lang?: 'vi' | 'en') {
     if (lang !== 'en') return project;
@@ -34,13 +43,19 @@ export class ProjectsService {
 
   private parseStringArray(value: unknown): string[] {
     if (Array.isArray(value)) {
-      return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+      return value.filter(
+        (item): item is string =>
+          typeof item === 'string' && item.trim().length > 0,
+      );
     }
     if (typeof value === 'string' && value.trim()) {
       try {
         const parsed = JSON.parse(value);
         if (Array.isArray(parsed)) {
-          return parsed.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+          return parsed.filter(
+            (item): item is string =>
+              typeof item === 'string' && item.trim().length > 0,
+          );
         }
       } catch {
         return [];
@@ -50,7 +65,7 @@ export class ProjectsService {
   }
 
   async create(
-    body: CreateProjectDto & { mainImages?: string[] | string; images?: string[] | string },
+    body: CreateProjectDto,
     files?: {
       mainImages?: Express.Multer.File[];
       images?: Express.Multer.File[];
@@ -74,16 +89,29 @@ export class ProjectsService {
     }
 
     const uploadedMainUrls = await Promise.all(
-      mainFiles.map((file) =>
-        this.supabaseService.uploadProjectImage(file, 'main'),
-      ),
+      mainFiles.map(async (file) => {
+        const uploaded = await this.r2Service.uploadImage(
+          file,
+          'projects/main',
+        );
+        return uploaded.url;
+      }),
     );
 
     const uploadedSubUrls = await Promise.all(
-      subFiles.map((file) =>
-        this.supabaseService.uploadProjectImage(file, 'gallery'),
-      ),
+      subFiles.map(async (file) => {
+        const uploaded = await this.r2Service.uploadImage(
+          file,
+          'projects/gallery',
+        );
+        return uploaded.url;
+      }),
     );
+
+    const minOrderAgg = await this.prisma.project.aggregate({
+      _min: { sortOrder: true },
+    });
+    const nextSortOrder = (minOrderAgg._min.sortOrder ?? 0) - 1;
 
     return this.prisma.project.create({
       data: {
@@ -106,8 +134,26 @@ export class ProjectsService {
         lng: body.lng || null,
         mainImages: [...bodyMainUrls, ...uploadedMainUrls],
         images: [...bodySubUrls, ...uploadedSubUrls],
+        sortOrder: nextSortOrder,
       },
     });
+  }
+
+  async reorder(ids: string[]) {
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new BadRequestException('Danh sách id không hợp lệ');
+    }
+
+    await this.prisma.$transaction(
+      ids.map((id, index) =>
+        this.prisma.project.update({
+          where: { id },
+          data: { sortOrder: index },
+        }),
+      ),
+    );
+
+    return { success: true };
   }
 
   async findAll(query?: {
@@ -153,9 +199,10 @@ export class ProjectsService {
 
     const where: Prisma.ProjectWhereInput =
       filters.length > 0 ? { AND: filters } : {};
-    const orderBy: Prisma.ProjectOrderByWithRelationInput = {
-      created_at: 'desc',
-    };
+    const orderBy: Prisma.ProjectOrderByWithRelationInput[] = [
+      { sortOrder: 'asc' },
+      { created_at: 'desc' },
+    ];
     const pagination = normalizePagination(query, 9, 100);
 
     const [groupedTypes, groupedInvestors, groupedCompletions] =
@@ -187,7 +234,9 @@ export class ProjectsService {
       investors: [
         ...new Set(
           groupedInvestors
-            .map((i) => (lang === 'en' ? i.investorEn || i.investor : i.investor))
+            .map((i) =>
+              lang === 'en' ? i.investorEn || i.investor : i.investor,
+            )
             .filter(Boolean),
         ),
       ],
@@ -245,7 +294,7 @@ export class ProjectsService {
 
   async update(
     id: string,
-    body: UpdateProjectDto & { mainImages?: string[] | string; images?: string[] | string },
+    body: UpdateProjectDto,
     files?: {
       mainImages?: Express.Multer.File[];
       images?: Express.Multer.File[];
@@ -254,7 +303,6 @@ export class ProjectsService {
     const existing = await this.findOne(id);
     const filesToDelete: string[] = [];
 
-    // 1. Xử lý tối đa 3 ảnh chính
     let keptMainImages: string[] = existing.mainImages || [];
     if (body.mainImages !== undefined) {
       keptMainImages = this.parseStringArray(body.mainImages);
@@ -276,16 +324,19 @@ export class ProjectsService {
     }
 
     const newMainUrls = await Promise.all(
-      newMainFiles.map((file) =>
-        this.supabaseService.uploadProjectImage(file, 'main'),
-      ),
+      newMainFiles.map(async (file) => {
+        const uploaded = await this.r2Service.uploadImage(
+          file,
+          'projects/main',
+        );
+        return uploaded.url;
+      }),
     );
     const finalMainImages = [...keptMainImages, ...newMainUrls];
     if (finalMainImages.length === 0) {
       throw new BadRequestException('Dự án phải có ít nhất 1 ảnh chính');
     }
 
-    // 2. Xử lý tối đa 15 ảnh phụ
     let keptSubImages: string[] = existing.images || [];
     if (body.images !== undefined) {
       keptSubImages = this.parseStringArray(body.images);
@@ -307,13 +358,17 @@ export class ProjectsService {
     }
 
     const newSubUrls = await Promise.all(
-      newSubFiles.map((file) =>
-        this.supabaseService.uploadProjectImage(file, 'gallery'),
-      ),
+      newSubFiles.map(async (file) => {
+        const uploaded = await this.r2Service.uploadImage(
+          file,
+          'projects/gallery',
+        );
+        return uploaded.url;
+      }),
     );
 
     if (filesToDelete.length > 0) {
-      await this.supabaseService.deleteProjectFiles(filesToDelete);
+      await this.r2Service.deleteByUrls(filesToDelete);
     }
 
     return this.prisma.project.update({
@@ -366,7 +421,7 @@ export class ProjectsService {
 
   async remove(id: string) {
     const existing = await this.findOne(id);
-    await this.supabaseService.deleteProjectFiles([
+    await this.r2Service.deleteByUrls([
       ...(existing.mainImages || []),
       ...(existing.images || []),
     ]);

@@ -9,6 +9,12 @@ import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import * as path from 'path';
 
+export type R2Folder =
+  | 'apps'
+  | 'app-icons'
+  | 'projects/main'
+  | 'projects/gallery';
+
 @Injectable()
 export class R2Service {
   private readonly s3: S3Client;
@@ -46,7 +52,7 @@ export class R2Service {
   async createPresignedUploadUrl(params: {
     fileName: string;
     contentType?: string;
-    folder?: 'apps' | 'app-icons';
+    folder?: R2Folder;
     expiresInSeconds?: number;
   }): Promise<{
     uploadUrl: string;
@@ -143,7 +149,7 @@ export class R2Service {
       };
     } catch (err) {
       console.error('R2 uploadImage error:', err);
-      throw new InternalServerErrorException('Tải ảnh ứng dụng lên R2 thất bại');
+      throw new InternalServerErrorException('Tải ảnh lên R2 thất bại');
     }
   }
 
@@ -167,5 +173,15 @@ export class R2Service {
     } catch (err) {
       console.error('R2 deleteByKey error:', err);
     }
+  }
+
+  async deleteByUrls(urls: (string | null | undefined)[]): Promise<void> {
+    const keys = urls
+      .map((url) => this.extractKeyFromUrl(url))
+      .filter((key): key is string => Boolean(key));
+
+    if (keys.length === 0) return;
+
+    await Promise.all(keys.map((key) => this.deleteByKey(key)));
   }
 }

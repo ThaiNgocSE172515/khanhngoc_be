@@ -1,21 +1,14 @@
+// src/projects/dto/update-project.dto.ts
 import { ApiPropertyOptional, PartialType } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
+import { IsOptional } from 'class-validator';
 import { CreateProjectDto } from './create-project.dto.js';
 
 export class UpdateProjectDto extends PartialType(CreateProjectDto) {
-  @ApiPropertyOptional({
-    type: [String],
-    description: 'JSON string danh sách URL ảnh chính giữ lại',
-  })
+  @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
-  existingMainImages?: string;
+  existingMainImages?: string[] | string;
 
-  @ApiPropertyOptional({
-    type: [String],
-    description: 'JSON string danh sách URL ảnh phụ giữ lại',
-  })
+  @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
-  existingImages?: string;
+  existingImages?: string[] | string;
 }

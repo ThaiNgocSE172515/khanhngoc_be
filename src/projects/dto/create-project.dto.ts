@@ -1,101 +1,102 @@
+// src/projects/dto/create-project.dto.ts
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateProjectDto {
-  @ApiProperty({ example: 'Dự án Khu đô thị X', description: 'Tên dự án (VI)' })
+  @ApiProperty()
   @IsString()
   @IsNotEmpty()
   name: string;
 
-  @ApiPropertyOptional({ example: 'Urban Area X Project', description: 'Tên dự án (EN)' })
+  @ApiPropertyOptional()
   @IsString()
   @IsOptional()
   nameEn?: string;
 
-  @ApiProperty({ example: 'Công ty Cổ phần ABC', description: 'Chủ đầu tư (VI)' })
+  @ApiProperty()
   @IsString()
   @IsNotEmpty()
   investor: string;
 
-  @ApiPropertyOptional({ example: 'ABC Joint Stock Company', description: 'Chủ đầu tư (EN)' })
+  @ApiPropertyOptional()
   @IsString()
   @IsOptional()
   investorEn?: string;
 
-  @ApiProperty({ example: 'Khu đô thị', description: 'Loại dự án (VI)' })
+  @ApiProperty()
   @IsString()
   @IsNotEmpty()
   projectType: string;
 
-  @ApiPropertyOptional({ example: 'Urban Area', description: 'Loại dự án (EN)' })
+  @ApiPropertyOptional()
   @IsString()
   @IsOptional()
   projectTypeEn?: string;
 
-  @ApiProperty({ example: '2026', description: 'Thời gian hoàn thành (VI)' })
+  @ApiProperty()
   @IsString()
   @IsNotEmpty()
   completionTime: string;
 
-  @ApiPropertyOptional({ example: '2026', description: 'Thời gian hoàn thành (EN)' })
+  @ApiPropertyOptional()
   @IsString()
   @IsOptional()
   completionTimeEn?: string;
 
-  @ApiProperty({ example: 'Vĩnh Long', description: 'Địa điểm (VI)' })
+  @ApiProperty()
   @IsString()
   @IsNotEmpty()
   location: string;
 
-  @ApiPropertyOptional({ example: 'Vinh Long, Vietnam', description: 'Địa điểm (EN)' })
+  @ApiPropertyOptional()
   @IsString()
   @IsOptional()
   locationEn?: string;
 
-  @ApiPropertyOptional({ example: 'Mô tả chi tiết dự án', description: 'Mô tả (VI)' })
+  @ApiPropertyOptional()
   @IsString()
   @IsOptional()
   description?: string;
 
-  @ApiPropertyOptional({ example: 'Detailed project description', description: 'Mô tả (EN)' })
+  @ApiPropertyOptional()
   @IsString()
   @IsOptional()
   descriptionEn?: string;
 
-  @ApiProperty({ example: '12.5 ha', description: 'Diện tích (VI)' })
+  @ApiProperty()
   @IsString()
   @IsNotEmpty()
   area: string;
 
-  @ApiPropertyOptional({ example: '12.5 ha', description: 'Diện tích (EN)' })
+  @ApiPropertyOptional()
   @IsString()
   @IsOptional()
   areaEn?: string;
 
-  @ApiPropertyOptional({ example: 'https://...', description: 'Link mô hình Revit' })
+  @ApiPropertyOptional()
   @IsString()
   @IsOptional()
   revitLink?: string;
 
-  @ApiPropertyOptional({ example: '10.2537', description: 'Vĩ độ (Latitude)' })
+  @ApiPropertyOptional()
   @IsString()
   @IsOptional()
   lat?: string;
 
-  @ApiPropertyOptional({ example: '105.9722', description: 'Kinh độ (Longitude)' })
+  @ApiPropertyOptional()
   @IsString()
   @IsOptional()
   lng?: string;
 
-  @ApiPropertyOptional({ type: [String], description: 'Danh sách URL ảnh chính' })
-  @IsArray()
-  @IsString({ each: true })
+  @ApiPropertyOptional({
+    description: 'Danh sách URL ảnh chính đã upload lên R2 (mảng hoặc JSON string)',
+  })
   @IsOptional()
-  mainImages?: string[];
+  mainImages?: string[] | string;
 
-  @ApiPropertyOptional({ type: [String], description: 'Danh sách URL ảnh phụ' })
-  @IsArray()
-  @IsString({ each: true })
+  @ApiPropertyOptional({
+    description: 'Danh sách URL ảnh phụ đã upload lên R2 (mảng hoặc JSON string)',
+  })
   @IsOptional()
-  images?: string[];
+  images?: string[] | string;
 }

@@ -15,10 +15,16 @@ import { ProjectsService } from './projects.service.js';
 import { CreateProjectDto } from './dto/create-project.dto.js';
 import { UpdateProjectDto } from './dto/update-project.dto.js';
 import { FindProjectsQueryDto } from './dto/find-projects-query.dto.js';
+import { PresignProjectDto } from './dto/presign-project.dto.js';
 
 @Controller('projects')
 export class ProjectsController {
   constructor(private readonly projectsService: ProjectsService) {}
+
+  @Post('presign')
+  createPresignedUrl(@Body() body: PresignProjectDto) {
+    return this.projectsService.createPresignedUploadUrl(body);
+  }
 
   @Post()
   @UseInterceptors(
@@ -30,7 +36,7 @@ export class ProjectsController {
   create(
     @Body() body: CreateProjectDto,
     @UploadedFiles()
-    files: {
+    files?: {
       mainImages?: Express.Multer.File[];
       images?: Express.Multer.File[];
     },
@@ -51,6 +57,11 @@ export class ProjectsController {
     });
   }
 
+  @Patch('reorder')
+  reorder(@Body('ids') ids: string[]) {
+    return this.projectsService.reorder(ids);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string, @Query('lang') lang?: 'vi' | 'en') {
     return this.projectsService.findOne(id, lang);
@@ -67,7 +78,7 @@ export class ProjectsController {
     @Param('id') id: string,
     @Body() body: UpdateProjectDto,
     @UploadedFiles()
-    files: {
+    files?: {
       mainImages?: Express.Multer.File[];
       images?: Express.Multer.File[];
     },
