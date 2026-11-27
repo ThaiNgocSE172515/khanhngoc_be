@@ -11,7 +11,9 @@ import envInstance from '../shared/env.config.js';
 @Injectable()
 export class ContactsService {
   private readonly logger = new Logger(ContactsService.name);
-  private readonly resend = new Resend(envInstance.RESEND_API_KEY);
+  private readonly resend = envInstance.RESEND_API_KEY
+    ? new Resend(envInstance.RESEND_API_KEY)
+    : null;
 
   constructor(private readonly prismaService: PrismaService) {}
 
@@ -25,7 +27,7 @@ export class ContactsService {
   }
 
   private async sendNotificationEmail(contact: Record<string, any>) {
-    if (!this.resend) {
+    if (!this.resend || !envInstance.RESEND_API_KEY) {
       this.logger.warn('Chưa cấu hình RESEND_API_KEY, bỏ qua gửi email.');
       return;
     }
@@ -130,7 +132,9 @@ export class ContactsService {
       });
 
       if (error) {
-        this.logger.error(`Gửi email Resend thất bại: ${error.message}`);
+        this.logger.error(
+          `Gửi email Resend thất bại (${error.name}): ${error.message}`,
+        );
       }
     } catch (err: any) {
       this.logger.error(`Lỗi gọi Resend API: ${err?.message || err}`);
@@ -158,8 +162,8 @@ export class ContactsService {
       },
     });
 
-    // Gửi email thông báo cho chủ doanh nghiệp (không chặn response nếu mail chậm)
-    void this.sendNotificationEmail(created);
+    // Await để request tới Resend hoàn tất trước khi hàm kết thúc (tránh bị cắt kết nối trên serverless)
+    await this.sendNotificationEmail(created);
 
     return created;
   }
